@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="x-ua-compatible" content="ie=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Attendance Web Application</title>
+
+	<link rel="stylesheet" type="text/css" href="/stylesheets/profile_style.css">
+</head>
+
+<body>
+
+	<div class="wrapper">
+		<div class="profile">
+			<div class="content">
+				<h1>Export Attendance Information</h1>
+				<form action="">
+					<fieldset>
+						<div class="grid-35">
+							<label for="class">Semester</label>
+						</div>
+						<div class="grid-65">
+							<select name="semester" id="semester" tabindex="8">
+								<option selected="selected" value="--------------" disabled></option>
+								<option value="vna">20191</option>
+								<option value="vnb">20192</option>
+								<option value="vnc">20193</option>
+							</select>
+						</div>
+					</fieldset>
+					<fieldset>
+						<div class="grid-35">
+							<label for="week">Lesson-Week</label>
+						</div>
+						<div class="grid-65" id="select-weeks">
+						</div>
+					</fieldset>
+					<fieldset>
+						<div class="grid-35">
+							<label for="lesson">Lesson</label>
+						</div>
+						<div class="grid-65">
+							<select name="lesson_export" id="lesson_export" tabindex="8">
+								<option selected="selected" value="--------------" disabled>--------------</option>
+								<option value="l1">He thong thong tin tren web</option>
+								<option value="l2">Bao mat thong tin</option>
+								<option value="l3">Tieng nhat 7</option>
+							</select>
+						</div>
+					</fieldset>
+					<fieldset>
+						<div class="grid-35">
+							<label for="time">Lesson time</label>
+						</div>
+						<div class="grid-65" id="select_times_export">
+						</div>
+					</fieldset>
+
+
+					<fieldset>
+						<input type="submit" class="Btn" id="btn-export" value="Export" name="Export" />
+					</fieldset>
+				</form>
+			</div>
+		</div>
+	</div>
+	<script src="javascripts/app.js"></script>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+	<script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
+	<script src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/14082/FileSaver.js"></script>
+</body>
+
+</html>
+<script>
+	const default_value = {
+		"l1": { "values": ["Monday 6h45", "Tuesday 14h15", "Friday 10h15"] },
+		"l2": { "values": ["Monday 8h30", "Thursday 10h15"] },
+		"l3": { "values": ["Thursday 8h30", "Friday 8h30"] }
+	}
+
+	$(document).ready(function () {
+		$('#lesson_export').on('change', function () {
+			const current = $(this).val();
+			$('#select_times_export').html('<select name="lesson_times_export" id="lesson_times_export" tabindex="8"></select>');
+			let options = '';
+			$.each(default_value[current].values, function (index, values) {
+				options += '<option value="time' + index + '">' + values + '</option>';
+			});
+			$('#lesson_times_export').html(options);
+		});
+	});
+
+	const value_default_weeks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+	$(document).ready(function () {
+		$('#select-weeks').html('<select name="lesson_weeks" id="lesson_weeks" tabindex="8"></select>');
+		let options = '';
+		$.each(value_default_weeks, function (week, value) {
+			options += '<option value="week' + week + '">' + value + '</option>';
+		});
+		$('#lesson_weeks').html(options);
+	});
+
+	$('#btn-export').click(async function (e) {
+		e.preventDefault();
+		let learning_semester = $('select[name=semester] option:selected').text();
+		let week = $('select[name=lesson_weeks] option:selected').text();
+		let lesson = $('#lesson_export option:selected').text();
+		let lesson_time = $('select[name=lesson_times_export] option:selected').text();
+		const condition = Object.assign({}, { learning_semester, week, lesson, lesson_time });
+		const span = document.createElement("span");
+		span.innerHTML = '<textarea id="textarea">' + 'Semester: ' + learning_semester
+			+ '&#10;' + 'Week: ' + week
+			+ '&#10;' + 'Lesson: ' + lesson
+			+ '&#10;' + 'Lesson time: ' + lesson_time
+			+ '</textarea>';
+		swal({
+			title: "Download File Excel",
+			content: span,
+			buttons: true,
+			dangerMode: true,
+		}).then((willDelete) => {
+			if (willDelete) {
+				$.ajax({
+					url: `/excel`,
+					type: 'POST',
+					data: condition,
+					success: res => {
+						if (res.length != 0) {
+							save_to_excel(res);
+							swal({
+								title: " Download success! ",
+								icon: "success",
+								button: "Back!",
+							}).then(
+								ok => location.href = '/export',
+								dismiss => window.location.reload()
+							)
+						}
+						else {
+							swal(
+								'Error!',
+								'No data',
+								'error'
+							)
+						}
+					},
+					error: err => {
+						swal(
+							'Saving failed!',
+							'A problem occured, please try again!',
+							'error'
+						)
+					}
+				})
+			} else {
+				swal("File export is not downloaded!");
+			}
+		})
+	})
+
+	function save_to_excel(arr_students) {
+		const TEMPLATE_XLS = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"/>
+        <head><!--[if gte mso 9]><xml>
+        <x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>{title}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml>
+        <![endif]--></head>
+        <body>{table}</body></html>`;
+		const MIME_XLS = 'application/vnd.ms-excel;base64,';
+
+		const parameters = {
+			title: "Student Attemdance",
+			table: objectToTable(arr_students),
+		};
+		const computeOutput = TEMPLATE_XLS.replace(/{(\w+)}/g, (x, y) => parameters[y]);
+
+		const computedXLS = new Blob([computeOutput], {
+			type: MIME_XLS,
+		});
+		saveAs(computedXLS, 'export.xls');
+	}
+
+	function objectToTable(arr_students) {
+		// extract keys from the first object, will be the title for each column
+		const colsHead = `<tr>${Object.keys(arr_students[0]).map(key => `<td>${key}</td>`).join('')}</tr>`;
+
+		const colsData = arr_students.map(obj => [`<tr>
+                ${Object.keys(obj).map(col => `<td>${obj[col] ? obj[col] : ''}</td>`).join('')}
+            </tr>`]) // 'null' values not showed
+			.join('');
+
+		return `<table>${colsHead}${colsData}</table>`.trim(); // remove spaces...
+	}
+
+</script>
